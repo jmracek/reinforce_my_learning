@@ -6,19 +6,21 @@
 #include<glm/glm.hpp>
 #include<GLFW/glfw3.h>
 
-constexpr float RADIUS = 0.75;
-constexpr float MASS = 1;
-constexpr float MOMENT_OF_INERTIA = MASS * RADIUS * RADIUS; // TORQUE = MOMENT_OF_INERTIA * d^2\theta
-constexpr float BAR_WIDTH = 0.005;
-constexpr float VELOCITY_X = 0.25; // screen units per second
-constexpr float VELOCITY_Y = 0.25;
-constexpr float TORQUE_L = 1;
-constexpr float TORQUE_R = 1;
-constexpr float GRAVITY_FORCE = -9.81; // m/s^2
+constexpr double RADIUS = 0.75;
+constexpr double MASS = 1;
+constexpr double MOMENT_OF_INERTIA = MASS * RADIUS * RADIUS; // TORQUE = MOMENT_OF_INERTIA * d^2\theta
+constexpr double BAR_WIDTH = 0.005;
+constexpr double VELOCITY_X = 1; // screen units per second
+constexpr double VELOCITY_Y = 1;
+constexpr double TORQUE_L = 1;
+constexpr double TORQUE_R = -1;
+constexpr double GRAVITY_FORCE = -9.81; // m/s^2
 
-
-constexpr float FRAMERATE = 150.0f;
+constexpr float FRAMERATE = 240.0f;
 constexpr float SECONDS_BETWEEN_FRAMES = 1 / FRAMERATE;
+
+bool tl_on = false;
+bool tr_on = false;
 
 const char* vertex_shader = R"glsl(
     #version 330
@@ -41,10 +43,14 @@ const char* fragment_shader = R"glsl(
 void processInput(GLFWwindow* window, float theta, double dt) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-        theta += dt * VELOCITY_Y;
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-        theta -= dt * VELOCITY_Y;
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+        tl_on = true;
+    else
+        tl_on = false;
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+        tr_on = true;
+    else
+        tr_on = false;
 }
 
 // This function opens up a new OpenGL window and does the necessary initialization.  We set a callback to execute if the window is resized
@@ -86,7 +92,6 @@ GLFWwindow* initOpenGL(int width, int height) {
             return glViewport(0, 0, width, height);
         }
     );
-
     return window;
 }
 
@@ -167,7 +172,7 @@ int main(void) {
     auto t_i = time_of_last_frame;
     auto t_im1 = time_of_last_frame;
 
-    float theta = 0.1, L = 0;
+    double theta = 0.01L, L = 0.0L;
     std::vector<float> rotationMatrix = computeRotationMatrix(theta);
     /*
     F_theta * dt = dL = L_i - L_im1
@@ -177,7 +182,7 @@ int main(void) {
         auto t_i = std::chrono::system_clock::now();
         // Handle input
         std::chrono::duration<double> dt = t_i - t_im1;
-        float F_theta = -GRAVITY_FORCE * std::sin(theta);
+        double F_theta = (tl_on ? TORQUE_L : 0) + (tr_on ? TORQUE_R : 0) - GRAVITY_FORCE * std::sin(theta);
         L += F_theta * dt.count() / MOMENT_OF_INERTIA;
         theta += dt.count() * L;
 
