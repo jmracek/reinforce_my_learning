@@ -24,12 +24,9 @@ constexpr double RADIUS = 0.75;
 constexpr double MASS = 1;
 constexpr double MOMENT_OF_INERTIA = MASS * RADIUS * RADIUS; // TORQUE = MOMENT_OF_INERTIA * d^2\theta
 constexpr double BAR_WIDTH = 0.005;
-constexpr double VELOCITY_X = 1; // screen units per second
-constexpr double VELOCITY_Y = 1;
 constexpr double TORQUE_L = 1;
 constexpr double TORQUE_R = -1;
 constexpr double GRAVITY_FORCE = -9.81; // m/s^2
-
 constexpr float FRAMERATE = 120.0f;
 constexpr float SECONDS_BETWEEN_FRAMES = 1 / FRAMERATE;
 
@@ -131,9 +128,7 @@ void render(State& cur, State& prev, double lag, GLuint shader, GLFWwindow* wind
     auto rotLocation = glGetUniformLocation(shader, "rot");
     auto rotationMatrix = computeRotationMatrix(renderTheta);
     glUniformMatrix3fv( rotLocation, 1, GL_FALSE, &rotationMatrix[0]);
-    //glDrawArrays(GL_TRIANGLES, 0, 3);
     glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_BYTE, 0);
-   // time_of_last_frame = std::chrono::system_clock::now();
     glfwSwapBuffers(window);
 }
 
@@ -194,7 +189,6 @@ int main(void) {
     glAttachShader(shader_programme, vs);
     glLinkProgram(shader_programme);
 
-    
     auto time_of_last_frame = std::chrono::system_clock::now();
     auto t_i = time_of_last_frame;
     auto t_im1 = time_of_last_frame;
@@ -222,7 +216,7 @@ int main(void) {
         render(currentState, prevState, lag, shader_programme, window);
         glfwPollEvents();
 
-    } // Check if the ESC key was pressed or the window was closed
+    } 
     while( glfwWindowShouldClose(window) == 0 );
     
     glfwTerminate();
