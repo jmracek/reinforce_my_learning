@@ -6,7 +6,7 @@
 #include<glm/glm.hpp>
 #include<GLFW/glfw3.h>
 
-std::vector<float> computeRotationMatrix(float angle) {
+std::vector<float> computeRotationMatrix(double angle) {
     std::vector<float> out(9, 0);
     out[0] = std::cos(angle);
     out[1] = std::sin(angle);
@@ -27,8 +27,8 @@ constexpr double BAR_WIDTH = 0.005;
 constexpr double TORQUE_L = 1;
 constexpr double TORQUE_R = -1;
 constexpr double GRAVITY_FORCE = -9.81; // m/s^2
-constexpr float FRAMERATE = 120.0f;
-constexpr float SECONDS_BETWEEN_FRAMES = 1 / FRAMERATE;
+constexpr double FRAMERATE = 60.0L;
+constexpr double SECONDS_BETWEEN_FRAMES = 1 / FRAMERATE;
 
 struct State {
     double theta;
@@ -38,7 +38,7 @@ struct State {
 };
 
 void update(State& state) {
-    double F_theta = (state.tl_on ? TORQUE_L : 0) + (state.tr_on ? TORQUE_R : 0) - GRAVITY_FORCE * std::sin(state.theta);
+    double F_theta = (state.tl_on ? TORQUE_L : 0) + (state.tr_on ? TORQUE_R : 0) - MASS * GRAVITY_FORCE * std::sin(state.theta);
     state.L += F_theta * SECONDS_BETWEEN_FRAMES / MOMENT_OF_INERTIA;
     state.theta += SECONDS_BETWEEN_FRAMES * state.L;
 }
@@ -108,6 +108,7 @@ GLFWwindow* initOpenGL(int width, int height) {
         return nullptr;
     }
 
+    glEnable(GL_MULTISAMPLE);  
     // Ensure we can capture the escape key being pressed below
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
     
@@ -122,7 +123,7 @@ GLFWwindow* initOpenGL(int width, int height) {
 
 void render(State& cur, State& prev, double lag, GLuint shader, GLFWwindow* window) {
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClear( GL_COLOR_BUFFER_BIT );
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(shader);
     double renderTheta = interpolate(lag / SECONDS_BETWEEN_FRAMES, cur, prev);
     auto rotLocation = glGetUniformLocation(shader, "rot");
@@ -189,9 +190,10 @@ int main(void) {
     glAttachShader(shader_programme, vs);
     glLinkProgram(shader_programme);
 
-    auto time_of_last_frame = std::chrono::system_clock::now();
-    auto t_i = time_of_last_frame;
-    auto t_im1 = time_of_last_frame;
+    double now = glfwGetTime();
+    double last = now;
+  //  auto t_i = time_of_last_frame;
+  //  auto t_im1 = time_of_last_frame;
     double lag = 0;
 
     State currentState{0.1L, 0.0L, false, false};
@@ -199,11 +201,14 @@ int main(void) {
     
     do {
         // Get cuurent time step 
-        auto t_i = std::chrono::system_clock::now();
-        std::chrono::duration<double> dt = t_i - t_im1;
-        t_im1 = t_i;
-        lag += dt.count();
-        
+        //t_i = std::chrono::high_resolution_clock::now();
+        last = now;
+        now = glfwGetTime();
+        double dt = now - last;
+        lag += dt;
+        //std::chrono::duration<double> dt = t_i - t_im1;
+        //t_im1 = t_i;
+        //lag += dt.count();
         processInput(window, currentState);
 
         // Compute forces and update according to laws of motion
@@ -212,10 +217,8 @@ int main(void) {
             update(currentState);
             lag -= SECONDS_BETWEEN_FRAMES;
         }
-        
         render(currentState, prevState, lag, shader_programme, window);
         glfwPollEvents();
-
     } 
     while( glfwWindowShouldClose(window) == 0 );
     
