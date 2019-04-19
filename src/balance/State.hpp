@@ -4,10 +4,11 @@
 #include <vector> 
 #include <memory>
 #include <string>
+#include <fstream>
 
 // Helpers 
 double sample(void) {
-    return rand() / INT_MAX; 
+    return (double) rand() / INT_MAX; 
 }
 
 int sample(int start, int end) {
@@ -33,23 +34,28 @@ double angle2pi(T x) {
     //return x - 2 * M_PI * std::floor( x / (2 * M_PI) );
 }
 
-constexpr float  EPSILON            =  0.9;
-constexpr int    VELOCITY_BUCKETS   =  100;
-constexpr int    ANGULAR_BUCKETS    =  100;
+constexpr double TIME_BETWEEN_ACTIONS = 1; // 0.5s
+constexpr double PHYSICS_TIMESTEP = 0.01 // Update 100x per second 
+
+constexpr float  EPSILON_C          =  0.9;
+constexpr int    VELOCITY_BUCKETS   =  10;
+constexpr int    ANGULAR_BUCKETS    =  10;
 constexpr int    NUM_ACTIONS        =  3;
-constexpr int    MAX_VELOCITY       =  10;
-constexpr int    MIN_VELOCITY       = -10;
+constexpr double MAX_VELOCITY       =  10.0L;
+constexpr double MIN_VELOCITY       = -10.0L;
 constexpr float  LEFT_REWARD_BDY    = -M_PI / 12;
 constexpr float  RIGHT_REWARD_BDY   =  M_PI / 12;
 constexpr double RADIUS = 0.75;
 constexpr double MASS = 1;
 constexpr double MOMENT_OF_INERTIA = MASS * RADIUS * RADIUS; // TORQUE = MOMENT_OF_INERTIA * d^2\theta
 constexpr double BAR_WIDTH = 0.01;
-constexpr double TORQUE_L = 25;
-constexpr double TORQUE_R = -25;
+constexpr double TORQUE_L = 3;
+constexpr double TORQUE_R = -3;
 constexpr double GRAVITY_FORCE = -9.8196; // m/s^2
 constexpr double FRAMERATE = 30.0L;
 constexpr double SECONDS_BETWEEN_FRAMES = 1 / FRAMERATE;
+constexpr double ACTION_RATE = 1;
+constexpr double SECONDS_BETWEEN_ACTIONS = 1 / ACTION_RATE;
 
 enum class Action {
     off,
@@ -83,11 +89,10 @@ std::vector<Action> Environment::actions = {Action::off, Action::torqueL, Action
 double Environment::reward(const State& prev, Action a, State& cur) {
     if (cur.L > MAX_VELOCITY or cur.L < MIN_VELOCITY) {
         std::cout << "You broke the rod! Press enter to continue" << std::endl;
-        std::cin.ignore();
         cur.broken = true;
         return -100;
     }
-    return std::cos(angle(cur.theta)) - 0.9; 
+    return std::cos(angle(cur.theta)); 
 
 /* OLD REWARD STRUCTURE
     if ( angle(cur.theta) < RIGHT_REWARD_BDY and angle(cur.theta) > LEFT_REWARD_BDY )
@@ -128,8 +133,15 @@ private:
 public:
     ActionValue(void): w(VELOCITY_BUCKETS * ANGULAR_BUCKETS * NUM_ACTIONS, 0) {
         // Initialize weights randomly
-        for (int i = 0; i < w.size(); i++)
-            w[i] = sample();
+        //for (int i = 0; i < w.size(); i++)
+        //    w[i] = sample();
+
+        for (auto& wt : w)
+            std::cout << wt << std::endl;
+    }
+
+    float& weight(int i, int j, int k) {
+        return w[ i + ANGULAR_BUCKETS * j + k * ANGULAR_BUCKETS * VELOCITY_BUCKETS ];
     }
 
     float& operator() (const State& x, Action a) {
@@ -148,7 +160,7 @@ public:
             k = 2;
             break;
         }
-
+        
         return w[ i + ANGULAR_BUCKETS * j + k * ANGULAR_BUCKETS * VELOCITY_BUCKETS ];
     }
     
@@ -196,8 +208,8 @@ public:
 
 class Agent {
 private:
-    float alpha = 0.5;
-    float gamma = 0.99;
+    float alpha = 1;
+    float gamma = 0.75;
     std::unique_ptr<ActionValue> Q;
 public:
     Agent(void) {
@@ -224,4 +236,27 @@ public:
     void print(const State& x, Action a) {
         std::cout << "Q(x, a): " << (*Q)(x,a) << std::endl;
     }
+    
+    void dump() {
+        std::ofstream ofs ("data.csv", std::ofstream::out); 
+        ofs << "action, angle, velocity, Q" << std::endl;
+        std::string actn;
+        for (int k = 0; k < NUM_ACTIONS; k++) {
+            switch (k) {
+            case 0:
+                actn = "Off";
+                break;
+            case 1:
+                actn = "TorqueL";
+                break;
+            case 2:
+                actn = "TorqueR";
+                break;
+            }
+            for (int i = 0; i < ANGULAR_BUCKETS; i++) 
+                for (int j = 0; j < VELOCITY_BUCKETS; j++) 
+                    ofs << actn << ", " << i << ", " << j << ", " << Q->weight(i,j,k) << std::endl;
+        }
+    }
+
 };
