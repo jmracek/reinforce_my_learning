@@ -2,6 +2,7 @@
 #include<chrono>
 #include<iostream>
 #include<vector>
+#include "State.hpp"
 #include<GL/glew.h>
 #include<glm/glm.hpp>
 #include<GLFW/glfw3.h>
@@ -20,26 +21,14 @@ std::vector<float> computeRotationMatrix(double angle) {
     return out;
 }
 
-constexpr double RADIUS = 0.75;
-constexpr double MASS = 1;
-constexpr double MOMENT_OF_INERTIA = MASS * RADIUS * RADIUS; // TORQUE = MOMENT_OF_INERTIA * d^2\theta
-constexpr double BAR_WIDTH = 0.005;
-constexpr double TORQUE_L = 1;
-constexpr double TORQUE_R = -1;
-constexpr double GRAVITY_FORCE = -9.81; // m/s^2
-constexpr double FRAMERATE = 60.0L;
-constexpr double SECONDS_BETWEEN_FRAMES = 1 / FRAMERATE;
-
-struct State {
-    double theta;
-    double L;
-    bool tl_on;
-    bool tr_on;
-};
-
 void update(State& state) {
     double F_theta = (state.tl_on ? TORQUE_L : 0) + (state.tr_on ? TORQUE_R : 0) - MASS * GRAVITY_FORCE * std::sin(state.theta);
-    state.L += F_theta * SECONDS_BETWEEN_FRAMES / MOMENT_OF_INERTIA;
+    double angularMomentumUpdate = F_theta * SECONDS_BETWEEN_FRAMES / MOMENT_OF_INERTIA;
+    // L = I*omega
+    if ( (state.L + angularMomentumUpdate) / MOMENT_OF_INERTIA <= MAX_VELOCITY and 
+         (state.L + angularMomentumUpdate) / MOMENT_OF_INERTIA >= MIN_VELOCITY)
+        state.L += angularMomentumUpdate;
+        
     state.theta += SECONDS_BETWEEN_FRAMES * state.L;
 }
 
@@ -66,16 +55,20 @@ const char* fragment_shader = R"glsl(
 )glsl";
 
 void processInput(GLFWwindow* window, State& state) {
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
-    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
-        state.tl_on = true;
-    else
-        state.tl_on = false;
-    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-        state.tr_on = true;
-    else
-        state.tr_on = false;
+    if (state.player == "human") {
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
+        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+            state.tl_on = true;
+        else
+            state.tl_on = false;
+        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+            state.tr_on = true;
+        else
+            state.tr_on = false;
+    }
+    else {
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
+    }
 }
 
 // This function opens up a new OpenGL window and does the necessary initialization.  We set a callback to execute if the window is resized
@@ -107,11 +100,8 @@ GLFWwindow* initOpenGL(int width, int height) {
         fprintf(stderr, "Failed to initialize GLEW\n");
         return nullptr;
     }
-
-    glEnable(GL_MULTISAMPLE);  
     // Ensure we can capture the escape key being pressed below
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
-    
     glfwSetFramebufferSizeCallback(
         window, 
         [](GLFWwindow* window, int width, int height) {
@@ -123,7 +113,7 @@ GLFWwindow* initOpenGL(int width, int height) {
 
 void render(State& cur, State& prev, double lag, GLuint shader, GLFWwindow* window) {
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     glUseProgram(shader);
     double renderTheta = interpolate(lag / SECONDS_BETWEEN_FRAMES, cur, prev);
     auto rotLocation = glGetUniformLocation(shader, "rot");
@@ -192,24 +182,53 @@ int main(void) {
 
     double now = glfwGetTime();
     double last = now;
+    srand((int) now);
+
   //  auto t_i = time_of_last_frame;
   //  auto t_im1 = time_of_last_frame;
     double lag = 0;
 
-    State currentState{0.1L, 0.0L, false, false};
-    State prevState{0.1L, 0.0L, false, false};
-    
+    std::string player;
+    std::cout << "Enter human or robot: " << std::endl;
+    std::cin >> player;
+
+    State currentState{0.1L, 0.0L, false, false, false, player};
+    State prevState{0.1L, 0.0L, false, false, false, player};
+    State lastActionState{0.1L, 0.0L, false, false, false, player};
+
+    Agent Bond;
+    Action lastAction = Action::off, currentAction = Action::off;
+    double reward = Environment::reward(lastActionState, lastAction, currentState);
+
     do {
+        processInput(window, currentState); // TODO: Choose human or robot
+        std::cout << "\033[2J";
+        currentState.print();
+        std::string act_string;
+        switch (currentAction) {
+        case Action::off:
+            act_string = "Off";
+            break;
+        case Action::torqueL:
+            act_string = "CCW";
+            break;
+        case Action::torqueR:
+            act_string = "CW";
+            break;
+        }
+        std::cout << "Action: " << act_string << std::endl;
+        std::cout << "Reward: " << reward << std::endl;
+        Bond.print(currentState, currentAction);
         // Get cuurent time step 
-        //t_i = std::chrono::high_resolution_clock::now();
         last = now;
         now = glfwGetTime();
         double dt = now - last;
         lag += dt;
-        //std::chrono::duration<double> dt = t_i - t_im1;
-        //t_im1 = t_i;
-        //lag += dt.count();
-        processInput(window, currentState);
+        
+        // Take action!
+        lastActionState = currentState;
+        if (currentState.player == "robot")
+            act(currentState, currentAction);
 
         // Compute forces and update according to laws of motion
         while (lag >= SECONDS_BETWEEN_FRAMES) {
@@ -218,10 +237,23 @@ int main(void) {
             lag -= SECONDS_BETWEEN_FRAMES;
         }
         render(currentState, prevState, lag, shader_programme, window);
+        
+        lastAction = currentAction;
+        currentAction = Bond.greedy(currentState, EPSILON);
+        reward = Environment::reward(lastActionState, lastAction, currentState);
+        Bond.updateSarsa(currentState, currentAction, reward, lastActionState, lastAction);
+
+        if (currentState.broken) {
+            currentState = State{2 * M_PI * sample() - M_PI, 0, false, false, false, player};
+            currentAction = Bond.greedy(currentState, EPSILON);
+        }
+         
         glfwPollEvents();
-    } 
-    while( glfwWindowShouldClose(window) == 0 );
+
+    } while( glfwWindowShouldClose(window) == 0 );
     
+
+
     glfwTerminate();
     return 0;
 }
