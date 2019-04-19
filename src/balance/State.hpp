@@ -34,12 +34,13 @@ double angle2pi(T x) {
     //return x - 2 * M_PI * std::floor( x / (2 * M_PI) );
 }
 
-constexpr double TIME_BETWEEN_ACTIONS = 1; // 0.5s
-constexpr double PHYSICS_TIMESTEP = 0.01 // Update 100x per second 
+constexpr double TIME_BETWEEN_ACTIONS = 0.5; // 0.5s
+constexpr double PHYSICS_TIMESTEP = 0.005; // Update 100x per second 
+constexpr int PHYSICS_STEPS_PER_ACTION = 100;
 
 constexpr float  EPSILON_C          =  0.9;
-constexpr int    VELOCITY_BUCKETS   =  10;
-constexpr int    ANGULAR_BUCKETS    =  10;
+constexpr int    VELOCITY_BUCKETS   =  100;
+constexpr int    ANGULAR_BUCKETS    =  100;
 constexpr int    NUM_ACTIONS        =  3;
 constexpr double MAX_VELOCITY       =  10.0L;
 constexpr double MIN_VELOCITY       = -10.0L;
