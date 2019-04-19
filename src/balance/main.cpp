@@ -23,13 +23,13 @@ std::vector<float> computeRotationMatrix(double angle) {
 
 void update(State& state) {
     double F_theta = (state.tl_on ? TORQUE_L : 0) + (state.tr_on ? TORQUE_R : 0) - MASS * GRAVITY_FORCE * std::sin(state.theta);
-    double angularMomentumUpdate = F_theta * SECONDS_BETWEEN_FRAMES / MOMENT_OF_INERTIA;
+    double angularMomentumUpdate = F_theta * PHYSICS_TIMESTEP / MOMENT_OF_INERTIA;
     // L = I*omega
     //if ( (state.L + angularMomentumUpdate) / MOMENT_OF_INERTIA <= MAX_VELOCITY and 
     //     (state.L + angularMomentumUpdate) / MOMENT_OF_INERTIA >= MIN_VELOCITY)
     state.L += angularMomentumUpdate;
         
-    state.theta += SECONDS_BETWEEN_FRAMES * state.L;
+    state.theta += PHYSICS_TIMESTEP * state.L;
 }
 
 double interpolate(double alpha, const State& cur, const State& prev) {
@@ -185,16 +185,17 @@ int main(void) {
     double last = now;
     double last_action_ts = now;
     */
-
+    /*
     auto now = std::chrono::high_resolution_clock::now();
     auto last = now;
     auto last_action_ts = now;
-
+    */
 
   //  auto t_i = time_of_last_frame;
   //  auto t_im1 = time_of_last_frame;
     double lag = 0;
-    double step = 50;
+    size_t phys_step = 0;
+    size_t step = 0;
     std::string player;
     std::cout << "Enter human or robot: " << std::endl;
     std::cin >> player;
@@ -208,28 +209,32 @@ int main(void) {
     double reward = Environment::reward(lastActionState, lastAction, currentState);
 
     do {
+        phys_step++;
+        
         processInput(window, currentState); // TODO: Choose human or robot
-        std::cout << "\033[2J";
-        std::cout << "Epsilon: " << 1 - EPSILON_C / std::powf(step / 50, 0.5) << std::endl;
-        currentState.print();
-        std::string act_string;
-        switch (currentAction) {
-        case Action::off:
-            act_string = "Off";
-            break;
-        case Action::torqueL:
-            act_string = "CCW";
-            break;
-        case Action::torqueR:
-            act_string = "CW";
-            break;
+        if (step % 10 == 0) {
+            std::cout << "\033[2J";
+            std::cout << "Step: " << step << std::endl;
+            std::cout << "Epsilon: " << 1 - EPSILON_C / std::powf(step / 50, 0.5) << std::endl;
+            currentState.print();
+            std::string act_string;
+            switch (currentAction) {
+            case Action::off:
+                act_string = "Off";
+                break;
+            case Action::torqueL:
+                act_string = "CCW";
+                break;
+            case Action::torqueR:
+                act_string = "CW";
+                break;
+            }
+            std::cout << "Action: " << act_string << std::endl;
+            std::cout << "Reward: " << reward << std::endl;
+            Bond.print(currentState, currentAction);
         }
-        std::cout << "Action: " << act_string << std::endl;
-        std::cout << "Reward: " << reward << std::endl;
-        Bond.print(currentState, currentAction);
-        std::cout << "Test" << std::endl;
         // Get cuurent time step 
-        last = now;
+        //last = now;
         //Human time
         //now = glfwGetTime();
         //double dt = now - last;
@@ -245,21 +250,19 @@ int main(void) {
             act(currentState, currentAction);
 
         // Compute forces and update according to laws of motion
-        std::cout << lag << std::endl;
-        std::cout << SECONDS_BETWEEN_FRAMES * 1e6 << std::endl;
-        while (lag >= SECONDS_BETWEEN_FRAMES * 1e6) {
-            prevState = currentState;
-            update(currentState);
-            lag -= SECONDS_BETWEEN_FRAMES;
-        }
+        //while (lag >= SECONDS_BETWEEN_FRAMES * 1e6) {
+        prevState = currentState;
+        update(currentState);
+        //    lag -= SECONDS_BETWEEN_FRAMES;
+       // }
 
-        render(currentState, prevState, lag, shader_programme, window);
+        //render(currentState, prevState, lag, shader_programme, window);
         
-        auto act_dt = std::chrono::duration_cast<std::chrono::microseconds>(now - last_action_ts);
+        //auto act_dt = std::chrono::duration_cast<std::chrono::microseconds>(now - last_action_ts);
 
-        if ( act_dt.count() > SECONDS_BETWEEN_ACTIONS) {
+        if (phys_step % PHYSICS_STEPS_PER_ACTION == 0) {
             step++;
-            last_action_ts = now;
+            //last_action_ts = now;
             lastAction = currentAction;
             currentAction = Bond.greedy(currentState, 1 - EPSILON_C / std::powf(step / 50, 0.5));
             reward = Environment::reward(lastActionState, lastAction, currentState);
