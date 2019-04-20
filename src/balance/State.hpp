@@ -89,11 +89,15 @@ std::vector<Action> Environment::actions = {Action::off, Action::torqueL, Action
 
 double Environment::reward(const State& prev, Action a, State& cur) {
     if (cur.L > MAX_VELOCITY or cur.L < MIN_VELOCITY) {
-        std::cout << "You broke the rod! Press enter to continue" << std::endl;
         cur.broken = true;
         return -100;
     }
-    return std::cos(angle(cur.theta)); 
+    double act = 0;
+    if (a == Action::torqueL or a == Action::torqueR)
+        act = 1;
+
+    return -(angle(cur.theta) * angle(cur.theta) + cur.L * cur.L + act);
+    //return std::cos(angle(cur.theta)); 
 
 /* OLD REWARD STRUCTURE
     if ( angle(cur.theta) < RIGHT_REWARD_BDY and angle(cur.theta) > LEFT_REWARD_BDY )

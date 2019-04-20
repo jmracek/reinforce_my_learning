@@ -212,7 +212,7 @@ int main(void) {
         phys_step++;
         
         processInput(window, currentState); // TODO: Choose human or robot
-        if (step % 10 == 0) {
+        if (step % 1000 == 0) {
             std::cout << "\033[2J";
             std::cout << "Step: " << step << std::endl;
             std::cout << "Epsilon: " << 1 - EPSILON_C / std::powf(step / 50, 0.5) << std::endl;
